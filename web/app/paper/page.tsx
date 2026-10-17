@@ -8,18 +8,12 @@ import {
   clearSession,
   downloadPdf,
   getUserId,
+  timeAgo,
   type Article,
   type Edition,
 } from "@/lib/api";
 import Masthead from "@/components/Masthead";
 import ThemeToggle from "@/components/ThemeToggle";
-
-function timeAgo(iso: string) {
-  const hours = Math.max(0, (Date.now() - new Date(iso).getTime()) / 36e5);
-  if (hours < 1) return "just now";
-  if (hours < 24) return `${Math.floor(hours)}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
 
 function Meta({ a }: { a: Article }) {
   return (
@@ -39,25 +33,26 @@ function Lead({ a }: { a: Article }) {
           <img src={a.image_url} alt="" className="photo max-h-96 md:h-full" />
         </div>
       )}
+
       <div className={a.image_url ? "md:col-span-3" : "md:col-span-5"}>
         <p className="kicker mb-3 !text-accent">Lead story</p>
         <Meta a={a} />
         <h2 className="headline font-display mt-3 text-4xl font-black leading-[1.05] tracking-tight md:text-6xl">
-          <a href={a.url} target="_blank" rel="noopener noreferrer">
-            {a.title}
-          </a>
+          <Link href={`/article/${a.id}`}>{a.title}</Link>
         </h2>
+
         {a.summary && (
           <p className="dropcap mt-5 text-lg leading-relaxed">{a.summary}</p>
         )}
-        <a
-          href={a.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn mt-6"
-        >
-          Read the full story &rarr;
-        </a>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Link href={`/article/${a.id}`} className="btn btn-solid">
+            Read the full story &rarr;
+          </Link>
+          <Link href={`/article/${a.id}?compare=1`} className="btn">
+            Compare coverage
+          </Link>
+        </div>
       </div>
     </article>
   );
@@ -70,12 +65,12 @@ function Story({ a }: { a: Article }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={a.image_url} alt="" className="photo mb-3 h-36" />
       )}
+
       <Meta a={a} />
       <h3 className="headline font-display mt-1.5 text-xl font-bold leading-snug">
-        <a href={a.url} target="_blank" rel="noopener noreferrer">
-          {a.title}
-        </a>
+        <Link href={`/article/${a.id}`}>{a.title}</Link>
       </h3>
+
       {a.summary && (
         <p className="mt-2 text-sm leading-relaxed text-muted">{a.summary}</p>
       )}
@@ -117,7 +112,11 @@ export default function Paper() {
 
   async function onPdf() {
     const userId = getUserId();
-    if (!userId) return;
+    if (!userId) {
+      router.replace("/login");
+      return;
+    }
+
     setPdfBusy(true);
     try {
       await downloadPdf(userId, day);
@@ -130,36 +129,57 @@ export default function Paper() {
 
   useEffect(() => {
     const userId = getUserId();
+
     if (!userId) {
       router.replace("/login");
       return;
     }
+
     setName(localStorage.getItem("safha_name") ?? "");
 
     const requested = new URLSearchParams(window.location.search).get("date");
     setDay(requested);
+
     const path = requested
-      ? `/edition/by-date/${requested}?user_id=${encodeURIComponent(userId)}`
+      ? `/edition/by-date/${encodeURIComponent(requested)}?user_id=${encodeURIComponent(userId)}`
       : `/edition/today?user_id=${encodeURIComponent(userId)}`;
+
+    let cancelled = false;
 
     fetch(`${API}${path}`)
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
+
         if (res.status === 404 && data.detail === "Unknown user") {
           clearSession();
           router.replace("/login");
           return;
         }
-        if (!res.ok) throw new Error(data.detail ?? "Could not load your paper");
-        setEdition(data);
+
+        if (!res.ok) {
+          throw new Error(data.detail ?? "Could not load your paper");
+        }
+
+        if (!cancelled) {
+          setEdition(data as Edition);
+          setError("");
+        }
       })
-      .catch((e) =>
+      .catch((e: unknown) => {
+        if (cancelled) return;
+
         setError(
           e instanceof TypeError
             ? "Couldn't reach the server. Is the API running on port 8000?"
-            : e.message
-        )
-      );
+            : e instanceof Error
+              ? e.message
+              : "Could not load your paper"
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const bar = (
@@ -168,8 +188,12 @@ export default function Paper() {
         <span className="kicker hidden sm:block">
           {name ? `Printed for ${name}` : "Your paper"}
         </span>
+
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <ThemeToggle />
+          <Link href="/search" className="btn">
+            Search
+          </Link>
           <Link href="/archive" className="btn">
             Archive
           </Link>
@@ -198,7 +222,10 @@ export default function Paper() {
           </h1>
           <p className="mt-3 text-accent">{error}</p>
           <div className="mt-6 flex justify-center gap-3">
-            <button onClick={() => window.location.reload()} className="btn btn-solid">
+            <button
+              onClick={() => window.location.reload()}
+              className="btn btn-solid"
+            >
               Try again
             </button>
             {day && (
@@ -231,11 +258,15 @@ export default function Paper() {
   return (
     <main className="min-h-screen">
       {bar}
+
       <div className="mx-auto max-w-6xl px-5 pb-16 pt-6">
         {day && (
           <p className="kicker mb-4 border border-ink bg-paper2 px-4 py-2 text-center">
             You are reading a past edition &middot;{" "}
-            <Link href="/paper" className="!text-accent underline underline-offset-4">
+            <Link
+              href="/paper"
+              className="!text-accent underline underline-offset-4"
+            >
               Back to today&apos;s paper
             </Link>
           </p>
@@ -264,6 +295,7 @@ export default function Paper() {
               </h2>
               <span className="kicker ml-auto">Section {idx + 1}</span>
             </div>
+
             <div className="cols-rule mt-6 grid gap-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
               {s.articles.map((a) => (
                 <Story key={a.id} a={a} />
@@ -277,6 +309,7 @@ export default function Paper() {
             <h2 className="font-display text-3xl font-black uppercase tracking-wide">
               Also today
             </h2>
+
             <ol className="mt-5 grid gap-x-12 md:grid-cols-2">
               {edition.more.map((a, i) => (
                 <li
@@ -288,9 +321,7 @@ export default function Paper() {
                   </span>
                   <div>
                     <h3 className="headline font-display text-lg font-bold leading-snug">
-                      <a href={a.url} target="_blank" rel="noopener noreferrer">
-                        {a.title}
-                      </a>
+                      <Link href={`/article/${a.id}`}>{a.title}</Link>
                     </h3>
                     <p className="kicker mt-1">{a.source}</p>
                   </div>
@@ -301,12 +332,16 @@ export default function Paper() {
         )}
 
         <footer className="mt-16 border-t border-ink pt-4 text-center">
-          <p lang="ur" dir="rtl" className="font-urdu text-xl leading-[2] text-accent">
+          <p
+            lang="ur"
+            dir="rtl"
+            className="font-urdu text-xl leading-[2] text-accent"
+          >
             پہلا صفحہ
           </p>
           <p className="kicker">
-            Printed for you by Pehla Safha &middot; Set in Playfair Display &amp;
-            Source Serif
+            Printed for you by Pehla Safha &middot; Set in Playfair Display
+            &amp; Source Serif
           </p>
         </footer>
       </div>

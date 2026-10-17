@@ -21,6 +21,52 @@ export type Edition = {
   more: Article[];
 };
 
+export type ArticleFull = {
+  id: string;
+  title: string;
+  source: string | null;
+  url: string;
+  image_url: string | null;
+  summary: string | null;
+  content: string | null;
+  topics: string[];
+  published_at: string | null;
+};
+
+export type Hit = {
+  id: string;
+  title: string;
+  source: string | null;
+  url: string;
+  image_url: string | null;
+  summary: string | null;
+  topics: string[];
+  published_at: string | null;
+  score: number;
+};
+
+export type Related = {
+  id: string;
+  title: string;
+  source: string | null;
+  url: string;
+  image_url: string | null;
+  summary: string | null;
+  published_at: string | null;
+  similarity: number;
+};
+
+export type HistoryRow = {
+  id: string;
+  title: string;
+  source: string | null;
+  image_url: string | null;
+  summary: string | null;
+  published_at: string | null;
+  viewed_at: string;
+  view_count: number;
+};
+
 // One source of truth for the session. Every page uses these.
 export const USER_KEY = "safha_user";
 export const NAME_KEY = "safha_name";
@@ -41,6 +87,19 @@ export function clearSession() {
   localStorage.removeItem("pehla_user_id"); // old key from earlier code
 }
 
+export function errMsg(e: unknown) {
+  if (e instanceof TypeError)
+    return "Couldn't reach the server. Is the API running on port 8000?";
+  return e instanceof Error ? e.message : "Something went wrong";
+}
+
+export async function getJson(path: string) {
+  const res = await fetch(`${API}${path}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail ?? `Server replied ${res.status}`);
+  return data;
+}
+
 export async function postJson(path: string, body: unknown) {
   const res = await fetch(`${API}${path}`, {
     method: "POST",
@@ -50,6 +109,14 @@ export async function postJson(path: string, body: unknown) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail ?? `Server replied ${res.status}`);
   return data;
+}
+
+export function timeAgo(iso: string | null) {
+  if (!iso) return "";
+  const hours = Math.max(0, (Date.now() - new Date(iso).getTime()) / 36e5);
+  if (hours < 1) return "just now";
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 export async function downloadPdf(userId: string, day?: string | null) {
