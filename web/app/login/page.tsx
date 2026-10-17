@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUserId, postJson, saveSession } from "@/lib/api";
+import Masthead from "@/components/Masthead";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Login() {
   const router = useRouter();
@@ -30,68 +32,71 @@ export default function Login() {
       router.push("/paper");
     } catch (err) {
       setError(
-        err instanceof Error && !err.message.includes("fetch")
+        err instanceof TypeError
+          ? "Couldn't reach the server. Is the API running on port 8000?"
+          : err instanceof Error
           ? err.message
-          : "Couldn't reach the server. Is the API running on port 8000?"
+          : "Could not sign in"
       );
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#F6F1E7] px-6 py-10 text-[#141414]">
-      <div className="mx-auto max-w-md">
-        <Link href="/" className="text-sm text-neutral-600 hover:text-[#141414]">
-          &larr; Back to start
-        </Link>
-
-        <header className="mt-6 border-y-4 border-double border-[#141414] py-6 text-center">
-          <p className="text-[11px] uppercase tracking-[0.35em] text-neutral-600">
-            Est. this morning
-          </p>
-          <h1 className="font-display mt-2 text-5xl font-bold">Pehla Safha</h1>
-          <p className="font-display italic text-neutral-700">The First Page</p>
-        </header>
-
-        <form
-          onSubmit={submit}
-          className="mt-10 border border-[#141414] bg-white/60 p-8 shadow-[6px_6px_0_#141414]"
-        >
-          <h2 className="font-display text-3xl font-bold">Welcome back.</h2>
-          <p className="mt-2 text-neutral-700">
-            Enter your email and we&apos;ll open today&apos;s paper.
-          </p>
-
-          <label className="mt-6 block">
-            <span className="text-sm font-medium">Email</span>
-            <input
-              type="email"
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="mt-1 w-full border border-neutral-500 bg-white px-4 py-3 outline-none focus:border-[#B3261E]"
-            />
-          </label>
-
-          {error && <p className="mt-3 text-sm text-[#B3261E]">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={!emailOk || loading}
-            className="mt-6 w-full bg-[#141414] py-3 font-medium text-[#F6F1E7] transition hover:bg-[#B3261E] disabled:opacity-40 disabled:hover:bg-[#141414]"
-          >
-            {loading ? "Opening..." : "Open my paper"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm">
-          New here?{" "}
-          <Link href="/" className="underline">
-            Create your paper
-          </Link>
-        </p>
+    <main className="mx-auto min-h-screen max-w-md px-6 py-8">
+      <div className="fixed right-4 top-4 z-20">
+        <ThemeToggle />
       </div>
+
+      <Link href="/" className="kicker hover:text-ink">
+        &larr; Back to start
+      </Link>
+
+      <div className="mt-5">
+        <Masthead
+          left="Est. this morning"
+          right="Subscribers"
+          title="Pehla Safha"
+          sub="Your world, on your first page."
+          urdu
+        />
+      </div>
+
+      <form onSubmit={submit} className="card reveal-3 mt-10 p-8">
+        <h2 className="font-display text-3xl font-bold">Welcome back.</h2>
+        <p className="mt-2 text-muted">
+          Enter your email and we&apos;ll open today&apos;s paper.
+        </p>
+
+        <label className="mt-6 block">
+          <span className="kicker">Email</span>
+          <input
+            type="email"
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="field mt-1"
+          />
+        </label>
+
+        {error && <p className="mt-3 text-sm text-accent">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={!emailOk || loading}
+          className="btn btn-solid mt-6 w-full justify-center py-3"
+        >
+          {loading ? "Opening..." : "Open my paper"}
+        </button>
+      </form>
+
+      <p className="mt-8 text-center text-sm text-muted">
+        New here?{" "}
+        <Link href="/" className="font-medium text-ink underline underline-offset-4">
+          Create your paper
+        </Link>
+      </p>
     </main>
   );
 }

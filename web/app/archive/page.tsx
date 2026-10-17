@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API, getUserId } from "@/lib/api";
+import Masthead from "@/components/Masthead";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type Row = {
   date: string;
@@ -38,52 +40,66 @@ export default function Archive() {
   }, [router]);
 
   return (
-    <main className="min-h-screen bg-[#F6F1E7] text-[#141414]">
-      <div className="mx-auto max-w-3xl px-5 py-8">
-        <Link
-          href="/paper"
-          className="text-sm text-neutral-600 hover:text-[#141414]"
-        >
-          &larr; Today&apos;s paper
-        </Link>
+    <main className="min-h-screen">
+      <div className="sticky top-0 z-30 border-b border-soft bg-paper/90 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-2.5">
+          <Link href="/paper" className="btn">
+            &larr; Today&apos;s paper
+          </Link>
+          <ThemeToggle />
+        </div>
+      </div>
 
-        <header className="mt-4 border-b-4 border-double border-[#141414] pb-4 text-center">
-          <h1 className="font-display text-5xl font-bold">The Archive</h1>
-          <p className="font-display italic text-neutral-700">
-            Every front page printed for you
-          </p>
-        </header>
+      <div className="mx-auto max-w-3xl px-5 pb-16 pt-6">
+        <Masthead
+          left="The back issues"
+          right={rows ? `${rows.length} editions` : ""}
+          title="The Archive"
+          sub="Every front page printed for you"
+        />
 
-        {error && <p className="mt-8 text-[#B3261E]">{error}</p>}
+        {error && <p className="mt-8 text-accent">{error}</p>}
         {!rows && !error && (
-          <p className="font-display mt-8 italic">Opening the cabinet...</p>
+          <p className="font-display mt-8 animate-pulse text-center italic text-muted">
+            Opening the cabinet...
+          </p>
         )}
         {rows && rows.length === 0 && (
-          <p className="mt-8">No papers yet. Open today&apos;s paper first.</p>
+          <p className="mt-8 text-center text-muted">
+            No papers yet. Open today&apos;s paper first.
+          </p>
         )}
 
-        <ul className="mt-6 divide-y divide-neutral-400">
-          {rows?.map((r) => (
-            <li key={r.date}>
-              <Link
-                href={`/paper?date=${r.date}`}
-                className="block py-4 hover:bg-white/50"
-              >
-                <p className="text-[11px] uppercase tracking-[0.25em] text-neutral-600">
-                  {new Date(r.date).toLocaleDateString("en-GB", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}{" "}
-                  &middot; Edition No. {r.edition_no}
-                </p>
-                <p className="font-display mt-1 text-xl font-bold leading-snug">
-                  {r.lead_title}
-                </p>
-              </Link>
-            </li>
-          ))}
+        <ul className="reveal-2 mt-8">
+          {rows?.map((r) => {
+            const d = new Date(r.date);
+            return (
+              <li key={r.date} className="border-b border-soft">
+                <Link
+                  href={`/paper?date=${r.date}`}
+                  className="group grid grid-cols-[4.5rem_1fr] items-center gap-5 py-5 transition-colors hover:bg-paper2"
+                >
+                  <div className="border-r border-soft pr-5 text-center">
+                    <p className="font-display text-4xl font-black leading-none text-accent">
+                      {d.getDate()}
+                    </p>
+                    <p className="kicker mt-1">
+                      {d.toLocaleDateString("en-GB", { month: "short" })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="kicker">
+                      {d.toLocaleDateString("en-GB", { weekday: "long" })}{" "}
+                      &middot; Edition No. {r.edition_no}
+                    </p>
+                    <p className="font-display mt-1 text-xl font-bold leading-snug">
+                      {r.lead_title}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </main>
