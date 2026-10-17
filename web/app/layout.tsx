@@ -1,3 +1,4 @@
+
 import type { Metadata } from "next";
 import {
   Inter,
@@ -12,16 +13,19 @@ const playfair = Playfair_Display({
   variable: "--font-playfair",
   display: "swap",
 });
+
 const source = Source_Serif_4({
   subsets: ["latin"],
   variable: "--font-source",
   display: "swap",
 });
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
 });
+
 const urdu = Noto_Nastaliq_Urdu({
   subsets: ["arabic"],
   weight: ["400", "700"],
@@ -31,7 +35,13 @@ const urdu = Noto_Nastaliq_Urdu({
 
 export const metadata: Metadata = {
   title: "Pehla Safha | The First Page",
-  description: "Your world, on your first page. A personalised daily paper.",
+  description:
+    "Your world, on your first page. A personalised daily paper.",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 const themeScript = `(function(){try{var t=localStorage.getItem('safha_theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.classList.toggle('dark',t==='dark')}catch(e){}})();`;
