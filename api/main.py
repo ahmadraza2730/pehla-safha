@@ -1,21 +1,26 @@
 import json
 import math
 import os
+import secrets
+import threading
 from datetime import date, datetime, timezone
 
 import psycopg
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastembed import TextEmbedding
 from pydantic import BaseModel
+
+from export.pdf import render_pdf
+from ingest.run import run as run_ingest
 
 load_dotenv()
 
 app = FastAPI(title="Pehla Safha API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -35,6 +40,10 @@ def vec_literal(vector):
 def health():
     return {"status": "ok"}
 
+
+# ---------------------------------------------------------------
+# Onboarding and login
+# ---------------------------------------------------------------
 
 class Onboarding(BaseModel):
     email: str
@@ -61,13 +70,32 @@ def onboarding(body: Onboarding):
                returning id""",
             (body.email, body.name, vec_literal(vector), json.dumps(weights)),
         ).fetchone()
-        
-        # PYLANCE FIX: Check if database returned a row before subscripting
+
         if not row:
             raise HTTPException(500, "Failed to insert or update user")
-            
+
     return {"user_id": str(row[0])}
 
+
+class Login(BaseModel):
+    email: str
+
+
+@app.post("/login")
+def login(body: Login):
+    with db() as conn:
+        row = conn.execute(
+            "select id, name from users where lower(email) = lower(%s)",
+            (body.email.strip(),),
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "No account with that email. Join first.")
+    return {"user_id": str(row[0]), "name": row[1]}
+
+
+# ---------------------------------------------------------------
+# Today's edition
+# ---------------------------------------------------------------
 
 def article_dict(r, score):
     return {
@@ -84,15 +112,14 @@ def edition_today(user_id: str):
             "select name, topic_weights, interest_vector is not null from users where id = %s",
             (user_id,),
         ).fetchone()
-        
+
         if not user:
             raise HTTPException(404, "Unknown user")
-            
+
         name, weights, has_vector = user
         if not has_vector:
             raise HTTPException(400, "Finish onboarding first")
-            
-        # PYLANCE FIX: Explicitly ensure weights is typed as a dictionary
+
         safe_weights: dict = weights if isinstance(weights, dict) else {}
 
         rows = conn.execute(
@@ -105,7 +132,7 @@ def edition_today(user_id: str):
                limit 400""",
             (user_id,),
         ).fetchall()
-        
+
         if not rows:
             raise HTTPException(404, "No enriched articles yet. Run ingest and enrich first.")
 
@@ -124,7 +151,6 @@ def edition_today(user_id: str):
         used.add(lead_r[0])
 
         sections = []
-        # PYLANCE FIX: Use safe_weights.keys() and a lambda that strictly expects a dictionary 
         for topic in sorted(safe_weights.keys(), key=lambda k: float(safe_weights.get(k, 0)), reverse=True)[:4]:
             items = []
             for s, r in scored:
@@ -146,7 +172,6 @@ def edition_today(user_id: str):
             if len(more) == 6:
                 break
 
-        # PYLANCE FIX: Safely check the count result
         count_row = conn.execute(
             "select count(*) from editions where user_id = %s", (user_id,)
         ).fetchone()
@@ -160,7 +185,7 @@ def edition_today(user_id: str):
             "sections": sections,
             "more": more,
         }
-        
+
         conn.execute(
             """insert into editions (user_id, edition_date, edition_no, content)
                values (%s, %s, %s, %s::jsonb)
@@ -168,5 +193,69 @@ def edition_today(user_id: str):
                do update set content = excluded.content""",
             (user_id, date.today(), edition["edition_no"], json.dumps(edition)),
         )
-        
+
     return edition
+
+
+# ---------------------------------------------------------------
+# PDF export
+# ---------------------------------------------------------------
+
+# Plain "def" (not async) so FastAPI runs it in a worker thread,
+# which Playwright's sync API needs.
+@app.get("/edition/pdf")
+def edition_pdf(user_id: str):
+    edition = edition_today(user_id)
+    pdf = render_pdf(edition)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="pehla-safha-{edition["date"]}.pdf"'
+        },
+    )
+
+
+# ---------------------------------------------------------------
+# Ingestion
+# ---------------------------------------------------------------
+
+_ingest_lock = threading.Lock()
+_last_result = {"status": "never run"}
+
+
+def check_secret(x_cron_secret):
+    expected = os.environ.get("CRON_SECRET", "")
+    if not expected or not x_cron_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not secrets.compare_digest(x_cron_secret, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def ingest_job():
+    global _last_result
+    if not _ingest_lock.acquire(blocking=False):
+        return
+    try:
+        _last_result = {"status": "running"}
+        counts = run_ingest()
+        _last_result = {"status": "done", **counts}
+    except Exception as ex:
+        _last_result = {"status": "error", "detail": str(ex)}
+    finally:
+        _ingest_lock.release()
+
+
+@app.post("/ingest/run")
+def trigger_ingest(background: BackgroundTasks, x_cron_secret: str = Header(None)):
+    check_secret(x_cron_secret)
+    if _ingest_lock.locked():
+        return {"started": False, "reason": "already running"}
+    background.add_task(ingest_job)
+    return {"started": True}
+
+
+@app.get("/ingest/status")
+def ingest_status(x_cron_secret: str = Header(None)):
+    check_secret(x_cron_secret)
+    return _last_result
