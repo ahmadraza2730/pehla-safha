@@ -40,17 +40,19 @@ export default function Archive() {
     const uid = encodeURIComponent(userId);
     let cancelled = false;
 
-    getJson<Row[]>(`/editions?user_id=${uid}`)
-      .then((data) => {
-        if (!cancelled) setRows(data);
+    // Removed <Row[]> type argument from getJson
+    getJson(`/editions?user_id=${uid}`)
+      .then((data: any) => {
+        if (!cancelled) setRows(data as Row[]);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(errMsg(e));
       });
 
-    getJson<HistoryRow[]>(`/history?user_id=${uid}`)
-      .then((data) => {
-        if (!cancelled) setRead(data);
+    // Removed <HistoryRow[]> type argument from getJson
+    getJson(`/history?user_id=${uid}`)
+      .then((data: any) => {
+        if (!cancelled) setRead(data as HistoryRow[]);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(errMsg(e));
