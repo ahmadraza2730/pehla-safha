@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getUserId, postJson, saveSession } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const TOPICS = [
   "Politics", "World", "Business", "Technology", "AI", "Science", "Health",
   "Sports", "Cricket", "Entertainment", "Pakistan", "Education",
@@ -24,7 +25,12 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+\$/.test(email);
+  // Already signed in on this browser? Go straight to the paper.
+  useEffect(() => {
+    if (getUserId()) router.replace("/paper");
+  }, [router]);
+
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
   const canNext =
     (step === 0 && name.trim().length > 0 && emailOk) ||
     (step === 1 && topics.length >= 3) ||
@@ -39,23 +45,20 @@ export default function Onboarding() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API}/onboarding`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          name: name.trim(),
-          topics,
-          about,
-        }),
+      const data = await postJson("/onboarding", {
+        email: email.trim().toLowerCase(),
+        name: name.trim(),
+        topics,
+        about,
       });
-      if (!res.ok) throw new Error(`Server replied ${res.status}`);
-      const data = await res.json();
-      localStorage.setItem("safha_user", data.user_id);
-      localStorage.setItem("safha_name", name.trim());
+      saveSession(data.user_id, name.trim());
       router.push("/paper");
     } catch (e) {
-      setError("Couldn't reach the server. Is the API running on port 8000?");
+      setError(
+        e instanceof Error && e.message.startsWith("Server replied")
+          ? e.message
+          : "Couldn't reach the server. Is the API running on port 8000?"
+      );
       setLoading(false);
     }
   }
@@ -138,9 +141,7 @@ export default function Onboarding() {
                 );
               })}
             </div>
-            <p className="text-sm text-neutral-600">
-              {topics.length} selected
-            </p>
+            <p className="text-sm text-neutral-600">{topics.length} selected</p>
           </div>
         )}
 
@@ -177,30 +178,41 @@ export default function Onboarding() {
         )}
       </section>
 
-      <footer className="flex items-center justify-between border-t border-neutral-400 pt-6">
-        <button
-          onClick={() => setStep((s) => s - 1)}
-          disabled={step === 0 || loading}
-          className="text-sm text-neutral-700 disabled:opacity-30"
-        >
-          Back
-        </button>
-        {step < 2 ? (
+      <footer className="border-t border-neutral-400 pt-6">
+        <div className="flex items-center justify-between">
           <button
-            onClick={() => setStep((s) => s + 1)}
-            disabled={!canNext}
-            className="rounded bg-[#141414] px-6 py-3 text-sm font-medium text-[#F6F1E7] disabled:opacity-30"
+            onClick={() => setStep((s) => s - 1)}
+            disabled={step === 0 || loading}
+            className="text-sm text-neutral-700 disabled:opacity-30"
           >
-            Continue
+            Back
           </button>
-        ) : (
-          <button
-            onClick={finish}
-            disabled={loading}
-            className="rounded bg-[#B3261E] px-6 py-3 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {loading ? "Printing your paper..." : "Print my first page"}
-          </button>
+          {step < 2 ? (
+            <button
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!canNext}
+              className="rounded bg-[#141414] px-6 py-3 text-sm font-medium text-[#F6F1E7] disabled:opacity-30"
+            >
+              Continue
+            </button>
+          ) : (
+            <button
+              onClick={finish}
+              disabled={loading}
+              className="rounded bg-[#B3261E] px-6 py-3 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {loading ? "Printing your paper..." : "Print my first page"}
+            </button>
+          )}
+        </div>
+
+        {step === 0 && (
+          <p className="mt-4 text-center text-sm">
+            Already a reader?{" "}
+            <Link href="/login" className="underline">
+              Sign in
+            </Link>
+          </p>
         )}
       </footer>
     </main>
