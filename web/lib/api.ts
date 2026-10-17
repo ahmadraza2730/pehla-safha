@@ -52,9 +52,10 @@ export async function postJson(path: string, body: unknown) {
   return data;
 }
 
-export async function downloadPdf(userId: string) {
+export async function downloadPdf(userId: string, day?: string | null) {
+  const q = day ? `&day=${encodeURIComponent(day)}` : "";
   const res = await fetch(
-    `${API}/edition/pdf?user_id=${encodeURIComponent(userId)}`
+    `${API}/edition/pdf?user_id=${encodeURIComponent(userId)}${q}`
   );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -64,7 +65,7 @@ export async function downloadPdf(userId: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `pehla-safha-${new Date().toISOString().slice(0, 10)}.pdf`;
+  a.download = `pehla-safha-${day ?? new Date().toISOString().slice(0, 10)}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }

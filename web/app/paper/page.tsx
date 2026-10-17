@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   API,
@@ -106,6 +107,7 @@ export default function Paper() {
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [day, setDay] = useState<string | null>(null);
 
   function signOut() {
     clearSession();
@@ -117,7 +119,7 @@ export default function Paper() {
     if (!userId) return;
     setPdfBusy(true);
     try {
-      await downloadPdf(userId);
+      await downloadPdf(userId, day);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Could not build the PDF");
     } finally {
@@ -133,7 +135,13 @@ export default function Paper() {
     }
     setName(localStorage.getItem("safha_name") ?? "");
 
-    fetch(`${API}/edition/today?user_id=${encodeURIComponent(userId)}`)
+    const requested = new URLSearchParams(window.location.search).get("date");
+    setDay(requested);
+    const path = requested
+      ? `/edition/by-date/${requested}?user_id=${encodeURIComponent(userId)}`
+      : `/edition/today?user_id=${encodeURIComponent(userId)}`;
+
+    fetch(`${API}${path}`)
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (res.status === 404 && data.detail === "Unknown user") {
@@ -160,6 +168,12 @@ export default function Paper() {
           {name ? `Printed for ${name}` : "Your paper"}
         </span>
         <div className="flex gap-2">
+          <Link
+            href="/archive"
+            className="border border-[#141414] px-3 py-1 hover:bg-[#141414] hover:text-[#F6F1E7]"
+          >
+            Archive
+          </Link>
           <button
             onClick={onPdf}
             disabled={pdfBusy || !edition}
@@ -187,12 +201,19 @@ export default function Paper() {
             The presses are jammed.
           </h1>
           <p className="mt-3 text-[#B3261E]">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-6 bg-[#141414] px-6 py-3 text-[#F6F1E7]"
-          >
-            Try again
-          </button>
+          <div className="mt-6 flex justify-center gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-[#141414] px-6 py-3 text-[#F6F1E7]"
+            >
+              Try again
+            </button>
+            {day && (
+              <Link href="/paper" className="border border-[#141414] px-6 py-3">
+                Today&apos;s paper
+              </Link>
+            )}
+          </div>
         </div>
       </main>
     );
@@ -220,6 +241,15 @@ export default function Paper() {
     <main className="min-h-screen bg-[#F6F1E7] text-[#141414]">
       {bar}
       <div className="mx-auto max-w-6xl px-5 pb-16 pt-6">
+        {day && (
+          <p className="mb-3 border border-[#141414] bg-white/50 px-4 py-2 text-center text-sm">
+            You are reading a past edition.{" "}
+            <Link href="/paper" className="font-medium underline">
+              Back to today&apos;s paper
+            </Link>
+          </p>
+        )}
+
         <header className="border-b-4 border-double border-[#141414] pb-4 text-center">
           <div className="flex justify-between text-[11px] uppercase tracking-[0.25em] text-neutral-600">
             <span>{dateLabel}</span>
